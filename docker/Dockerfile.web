@@ -1,0 +1,20 @@
+FROM node:20-alpine AS base
+WORKDIR /app
+
+FROM base AS builder
+COPY package.json turbo.json tsconfig.base.json ./
+COPY packages ./packages
+COPY apps/web ./apps/web
+RUN npm ci --workspace=@truerefurb/web --workspace=@truerefurb/shared-types --workspace=@truerefurb/config --workspace=@truerefurb/validation
+RUN npm run build --workspace=@truerefurb/web
+
+FROM base AS runner
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=builder /app/apps/web/public ./apps/web/public
+COPY --from=builder /app/apps/web/.next ./apps/web/.next
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/web/package.json ./apps/web/package.json
+
+EXPOSE 3000
+CMD ["npm", "run", "start", "--workspace=@truerefurb/web"]

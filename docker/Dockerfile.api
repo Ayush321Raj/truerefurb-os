@@ -1,0 +1,21 @@
+FROM node:20-alpine AS base
+WORKDIR /app
+
+FROM base AS builder
+COPY package.json turbo.json tsconfig.base.json ./
+COPY prisma ./prisma
+COPY packages ./packages
+COPY apps/api ./apps/api
+RUN npm ci --workspace=@truerefurb/api --workspace=@truerefurb/shared-types --workspace=@truerefurb/config --workspace=@truerefurb/validation
+RUN npx prisma generate --schema=./prisma/schema.prisma
+RUN npm run build --workspace=@truerefurb/api
+
+FROM base AS runner
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
+
+EXPOSE 4000
+CMD ["npm", "run", "start:prod", "--workspace=@truerefurb/api"]
